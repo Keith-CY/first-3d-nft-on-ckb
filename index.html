@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+
+  <body>
+    <script type="module">
+      import TWEEN from 'https://cdn.skypack.dev/tween'
+      import { OrbitControls } from './utils/OrbitControls.js'
+      import * as THREE from './utils/three.module.js'
+      import { RectAreaLightUniformsLib } from './utils/RectAreaLightUniformsLib.js'
+      import { BufferGeometryUtils } from './utils/BufferGeometryUtils.js'
+      import { engraveText } from './utils/engraveText.js'
+      import { addLights, addFloor, getRing } from './models/index.js'
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true })
+      renderer.setSize(window.innerWidth, window.innerHeight)
+      renderer.setPixelRatio(window.devicePixelRatio)
+      renderer.outputEncoding = THREE.sRGBEncoding
+      document.body.appendChild(renderer.domElement)
+
+      const scene = new THREE.Scene()
+
+      const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 1, 1000)
+      camera.position.set(0, 5, -15)
+
+      const query = new URLSearchParams(window.location.search)
+      const data = {
+        innerText: query.get('signature') || '',
+        outerText: query.get('badge') || 'NFT on CKB',
+        color: +query.get('color') || 0xefbb24,
+      }
+
+      addLights(scene)
+      addFloor(scene)
+      const { ringCSG, ringMesh, engravedMesh } = getRing( data.color)
+      scene.add(engravedMesh)
+
+      /**
+       * add controls
+       **/
+      const controls = new OrbitControls(camera, renderer.domElement)
+      controls.enableDamping = true
+      controls.target.set(0, 0, 0)
+
+      const loader = new THREE.FontLoader()
+      loader.load('./fonts/Special_Elite_Regular.json', (font) => {
+        engraveText(scene, ringCSG, engravedMesh, font, data.innerText, data.outerText)
+      })
+      window.addEventListener(
+        'resize',
+        () => {
+          camera.aspect = window.innerWidth / window.innerHeight
+          camera.updateProjectionMatrix()
+          renderer.setSize(window.innerWidth, window.innerHeight)
+        },
+        false,
+      )
+      const raycaster = new THREE.Raycaster()
+      renderer.domElement.addEventListener(
+        'dblclick',
+        () => {
+          const mouse = {
+            x: (event.clientX / renderer.domElement.clientWidth) * 2 - 1,
+            y: -(event.clientY / renderer.domElement.clientHeight) * 2 + 1,
+          }
+          raycaster.setFromCamera(mouse, camera)
+          const intersects = raycaster.intersectObject(engravedMesh, false)
+          if (intersects.length > 0) {
+            const p = intersects[0].point
+            new TWEEN.Tween(controls.target).to({ x: p.x, y: p.y, z: p.z }, 200).easing(TWEEN.Easing.Cubic.Out).start()
+          }
+        },
+        false,
+      )
+      let rotation = 0
+      const animate = () => {
+        requestAnimationFrame(animate)
+        controls.update()
+        TWEEN.update()
+        rotation += 0.005
+
+        engravedMesh.rotation.y = rotation
+        renderer.render(scene, camera)
+      }
+      animate()
+    </script>
+  </body>
+</html>
